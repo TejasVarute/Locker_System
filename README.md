@@ -27,7 +27,7 @@ LockerSystem/
 ├── DATA/                   # SQLite database file
 ├── PyENV/                  # Python Environment
 ├── GUI.py                  # Main GUI launcher
-|
+├
 ├── README.md
 ├── requirements.txt
 ├── runner.bat
