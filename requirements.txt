@@ -1,0 +1,13 @@
+numpy==1.26.4
+opencv-python
+opencv-contrib-python
+sv_ttk
+cmake
+dlib
+customtkinter
+pillow
+pandas
+setuptools
+git+https://github.com/ageitgey/face_recognition_models
+.Requirements\dlib-19.24.99-cp312-cp312-win_amd64.whl
+face_recognition 
