@@ -1342,12 +1342,8 @@ class GUI(customtkinter.CTk):
     def record_entry(self, match):
         entry_time = datetime.datetime.now().strftime("%T")
         self.logs[match] = {"Entry": entry_time, "Exit": None}
-        self.locker_no, self.locker_type = self.getlockers(match) 
-
-        if not self.locker_no:
-            if messagebox.showerror("Locker closed", f"Mr/Miss {match} your locker is closed"):
-                self.after(250, self.toggle_camera)
-        else:
+        try:
+            self.locker_no, self.locker_type = self.getlockers(match) 
             self.entries[self.counter] = [self.locker_no, match, entry_time]
             DatabaseManager().set_visitors(self.locker_no, self.locker_type, match, entry_time=entry_time)
             self.visitors_info()
@@ -1356,6 +1352,9 @@ class GUI(customtkinter.CTk):
             self.status.configure(text = f"{match} Inside \nWaiting for Exit...")
             
             self.start_wait(init=False, onEnter=True, onExit=False)
+        except Exception:
+            if messagebox.showerror("Locker closed", f"Mr/Miss {match} your locker is closed"):
+                self.after(250, self.toggle_camera)
 
     def record_exit(self, match):
         exit_time = datetime.datetime.now().strftime("%T")
