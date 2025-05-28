@@ -29,7 +29,7 @@ class Settings:
     ICON = f'{CURRENT_DIR}/assets/locker.ico'
     COLOR = f'{CURRENT_DIR}/assets/theme.json'
     
-    CAMERA = 1
+    CAMERA = 0
     SAMPLES = 5
     TOLERANCE = 0.5
     MODEL = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -1201,19 +1201,33 @@ class GUI(customtkinter.CTk):
         FILEMENU2.add_command(label="Setup total lockers", activebackground="#0A84FF", command=LockerManager)
         FILEMENU2.add_separator()
         
-        SUBFILEMENU3 = tkinter.Menu(FILEMENU3, activebackground="#0A84FF", tearoff=0)
+        SUBFILEMENU1 = tkinter.Menu(FILEMENU3, activebackground="#0A84FF", tearoff=0)
+        SUBFILEMENU2 = tkinter.Menu(FILEMENU3, activebackground="#0A84FF", tearoff=0)
         
-        FILEMENU3.add_cascade(label="Change Appearance", activebackground="#0A84FF", menu=SUBFILEMENU3)
+        FILEMENU3.add_cascade(label="Change Appearance", activebackground="#0A84FF", menu=SUBFILEMENU1)
+        FILEMENU3.add_cascade(label="Set Camera", activebackground="#0A84FF", menu=SUBFILEMENU2)
         FILEMENU3.add_separator()
         
-        SUBFILEMENU3.add_command(label="Light", activebackground="#0A84FF", command= lambda mode="light" : WindowSettings().changeAppearance(mode))
-        SUBFILEMENU3.add_command(label="Dark", activebackground="#0A84FF", command= lambda mode="dark" : WindowSettings().changeAppearance(mode))
+        SUBFILEMENU1.add_command(label="Light", activebackground="#0A84FF", command= lambda mode="light" : WindowSettings().changeAppearance(mode))
+        SUBFILEMENU1.add_command(label="Dark", activebackground="#0A84FF", command= lambda mode="dark" : WindowSettings().changeAppearance(mode))
+        
+        for cam in range (5):
+            camera = cv2.VideoCapture(cam)
+            if camera.isOpened():
+                if cam == 0:
+                    SUBFILEMENU2.add_command(label="Default", activebackground="#0A84FF", command=lambda camera=cam : self.updateCamera(camera))
+                else:
+                    SUBFILEMENU2.add_command(label=f"External Camera {cam}", activebackground="#0A84FF", command=lambda camera=cam : self.updateCamera(camera))
         
         FILEMENU4.add_command(label="Get occupied locker details", activebackground="#0A84FF", command=lambda : GetIntoExcel().occupied_lockers())
         FILEMENU4.add_command(label="Get visitors details", activebackground="#0A84FF", command=lambda : GetIntoExcel().visitors_list())
         FILEMENU4.add_command(label="Get old customer details", activebackground="#0A84FF", command=lambda : GetIntoExcel().old_customers())
         FILEMENU4.add_separator()
 
+    def updateCamera(self, camera):
+        Settings.CAMERA = camera
+        print(Settings.CAMERA)
+    
     def visitors(self):        
         # Treeview table inside right_frame
         table_frame = customtkinter.CTkFrame(self.rightFrame)
