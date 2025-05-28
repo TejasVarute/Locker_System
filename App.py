@@ -88,7 +88,7 @@ class DatabaseManager:
             
             "Name":""" 
                 CREATE TABLE IF NOT EXISTS Name (
-                Locker_No VARCHAR(5) PRIMARY KEY,
+                Locker_No VARCHAR(5),
                 Locker_Type VARCHAR(50) NOT NULL,
                 Locker_For VARCHAR(50) NOT NULL,
                 First_Name VARCHAR(50) NOT NULL,
@@ -100,7 +100,8 @@ class DatabaseManager:
             
             "Address": """
                     CREATE TABLE IF NOT EXISTS Address (
-                    Locker_No VARCHAR(5) PRIMARY KEY,
+                    Locker_No VARCHAR(5),
+                    Locker_Type VARCHAR(50) NOT NULL,
                     Line1 VARCHAR(255) NOT NULL,
                     Line2 VARCHAR(255),
                     City VARCHAR(100) NOT NULL,
@@ -115,7 +116,8 @@ class DatabaseManager:
             
             "KYC": """
                     CREATE TABLE IF NOT EXISTS KYC (
-                    Locker_No VARCHAR(5) PRIMARY KEY,
+                    Locker_No VARCHAR(5),                    
+                    Locker_Type VARCHAR(50) NOT NULL,
                     Adhaar BIGINT UNIQUE NOT NULL,
                     PAN VARCHAR(10) UNIQUE NOT NULL,
                     FOREIGN KEY (Locker_No) REFERENCES Name(Locker_No) ON DELETE CASCADE
@@ -124,7 +126,8 @@ class DatabaseManager:
             
             "Permissions": """
                     CREATE TABLE IF NOT EXISTS Permissions (
-                    Locker_No VARCHAR(5) PRIMARY KEY,
+                    Locker_No VARCHAR(5),
+                    Locker_Type VARCHAR(50) NOT NULL,
                     Person_1 VARCHAR(100) DEFAULT NULL,
                     Person_2 VARCHAR(100) DEFAULT NULL,
                     Person_3 VARCHAR(100) DEFAULT NULL,
@@ -148,7 +151,7 @@ class DatabaseManager:
                 
             "OldLockers":"""
                     CREATE TABLE IF NOT EXISTS OldLockers (
-                        Locker_No VARCHAR(5) PRIMARY KEY,
+                        Locker_No VARCHAR(5),
                         Locker_Type VARCHAR(50) NOT NULL,
                         Locker_For VARCHAR(50) NOT NULL,
                         Name VARCHAR(255) NOT NULL,
@@ -183,6 +186,7 @@ class DatabaseManager:
                         "Address":
                         f"""INSERT INTO Address VALUES (
                             "{entries["Locker No"]}", 
+                            '{entries["Locker Type"]}',
                             '{entries["Address Line 1"]}', 
                             '{entries["Address Line 2"]}', 
                             '{entries["City"]}', 
@@ -194,13 +198,15 @@ class DatabaseManager:
                         
                         "KYC":
                         f"""INSERT INTO KYC VALUES (
-                            "{entries["Locker No"]}", 
+                            "{entries["Locker No"]}",
+                            '{entries["Locker Type"]}', 
                             {entries["Aadhaar ID"]}, 
                             '{entries["PAN ID"]}');""",
                         
                         "Permissions":
                         f"""INSERT INTO Permissions VALUES (
                             "{entries["Locker No"]}", 
+                            '{entries["Locker Type"]}',
                             '{entries["Person 1"]}', 
                             '{entries["Person 2"]}', 
                             '{entries["Person 3"]}', 
@@ -362,19 +368,20 @@ class DatabaseManager:
         return details
         
     def releaseLocker(self, locker_num, locker_type):
-        self.cursor.execute("SELECT * FROM Name, Address, KYC, Permissions WHERE Name.Locker_No = ? AND Locker_Type = ?", (str(locker_num),locker_type))
+        self.cursor.execute("SELECT * FROM Name, Address, KYC, Permissions WHERE Name.Locker_No = ? AND Name.Locker_Type = ?", (str(locker_num), locker_type))
         data = self.cursor.fetchall()[0]
         self.connection.commit()
         name = f'{data[3]} {data[4]} {data[5]}'
-        address = f'{data[8]}, {data[9]}, {data[10]}, {data[11]}, {data[12]}, {data[13]}, {data[14]}, {data[15]}'
+        address = f'{data[9]}, {data[10]}, {data[11]}, {data[12]}, {data[13]}, {data[14]}, {data[15]}, {data[16]}'
         date = datetime.date.today().strftime("%Y-%m-%d")
-        self.cursor.execute(f"INSERT INTO OldLockers VALUES ('{str(data[0])}', '{data[1]}', '{data[2]}', '{name}', '{data[6]}', '{date}', '{address}', '{data[17]}', '{data[18]}', '{data[20]}', '{data[21]}', '{data[22]}', '{data[23]}', '{data[24]}')")
+        
+        self.cursor.execute(f"INSERT INTO OldLockers VALUES ('{str(data[0])}', '{data[1]}', '{data[2]}', '{name}', '{data[6]}', '{date}', '{address}', '{data[19]}', '{data[20]}', '{data[23]}', '{data[24]}', '{data[25]}', '{data[26]}', '{data[27]}')")
         self.connection.commit()
         
-        self.cursor.execute("DELETE FROM Name WHERE Name.Locker_No = ? AND Name.Locker_Type = ?", (str(locker_num), locker_type))
-        self.cursor.execute("DELETE FROM Address WHERE Locker_No = ?", str(locker_num))
-        self.cursor.execute("DELETE FROM KYC WHERE Locker_No = ?", str(locker_num))
-        self.cursor.execute("DELETE FROM Permissions WHERE Locker_No = ?", str(locker_num))
+        self.cursor.execute(f"DELETE FROM Name WHERE Locker_No = {str(locker_num)} AND Locker_Type = '{locker_type}'")
+        self.cursor.execute(f"DELETE FROM Address WHERE Locker_No = { str(locker_num)} AND Locker_Type = '{locker_type}'")
+        self.cursor.execute(f"DELETE FROM KYC WHERE Locker_No = {str(locker_num)} AND Locker_Type = '{locker_type}'")
+        self.cursor.execute(f"DELETE FROM Permissions WHERE Locker_No = {str(locker_num)} AND Locker_Type = '{locker_type}'")
         self.connection.commit()
         
     def get_old_customer_details(self):
