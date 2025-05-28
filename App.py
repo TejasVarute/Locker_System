@@ -212,7 +212,7 @@ class DatabaseManager:
             self.connection.commit()
 
     def get_occupied_details(self):
-        details = {"Locker No" : [], "Locker Type" : [], "Occupied By" : [], "Address" : [], "Addhaar ID": [], "PAN ID": [], "Permissioned Person 1" : [], 
+        details = {"Locker No" : [], "Locker Size":[], "Locker Type" : [], "Registration Date" : [], "Occupied By" : [], "Address" : [], "Addhaar ID": [], "PAN ID": [], "Permissioned Person 1" : [], 
                    "Permissioned Person 2" : [], "Permissioned Person 3" : [], "Permissioned Person 4" : [], "Permissioned Person 5" : []}
         
         self.cursor.execute("SELECT * FROM Name, Address, KYC, Permissions")
@@ -220,22 +220,22 @@ class DatabaseManager:
         self.connection.commit()
         
         for data in all_data:
-            name = f'{data[2]} {data[3]} {data[4]}'
-            address = f'{data[6]}, {data[7]}, {data[8]}, {data[9]}, {data[10]}, {data[11]}, {data[12]}, {data[13]}'
+            name = f'{data[3]} {data[4]} {data[5]}'
+            address = f'{data[8]}, {data[9]}, {data[10]}, {data[11]}, {data[12]}, {data[13]}'
             
             details["Locker No"].append(data[0])
-            details["Locker Type"].append(data[1])
-            details["Locker For"].append(data[2])
+            details["Locker Size"].append(data[1])
+            details["Locker Type"].append(data[2])
             details["Registration Date"].append(data[6])
             details["Occupied By"].append(name)
             details["Address"].append(address)
-            details["Addhaar ID"].append(data[15])
-            details["PAN ID"].append(data[16])
-            details["Permissioned Person 1"].append(data[18])
-            details["Permissioned Person 2"].append(data[19])
-            details["Permissioned Person 3"].append(data[20])
-            details["Permissioned Person 4"].append(data[21])
-            details["Permissioned Person 5"].append(data[22])
+            details["Addhaar ID"].append(data[17])
+            details["PAN ID"].append(data[18])
+            details["Permissioned Person 1"].append(data[20])
+            details["Permissioned Person 2"].append(data[21])
+            details["Permissioned Person 3"].append(data[22])
+            details["Permissioned Person 4"].append(data[23])
+            details["Permissioned Person 5"].append(data[24])
         return details        
     
     def get_occupied_lockers(self):
