@@ -1218,7 +1218,7 @@ class GUI(customtkinter.CTk):
         SUBFILEMENU1.add_command(label="Light", activebackground="#0A84FF", command= lambda mode="light" : WindowSettings().changeAppearance(mode))
         SUBFILEMENU1.add_command(label="Dark", activebackground="#0A84FF", command= lambda mode="dark" : WindowSettings().changeAppearance(mode))
         
-        for cam in range (5):
+        for cam in range (10):
             camera = cv2.VideoCapture(cam)
             if camera.isOpened():
                 if cam == 0:
@@ -1324,6 +1324,10 @@ class GUI(customtkinter.CTk):
             if match != "Unknown" and match !="No faces registered":
                 if match not in self.logs and not self.entry_detected: self.record_entry(match)
                 elif match == self.current_person and self.entry_detected and self.waiting_for_exit: self.record_exit(match)
+            elif match == "No faces registered":
+                if messagebox.showerror("Unknown Person", "Unknown Face, Please register your locker !"):
+                    self.checking = False
+                    self.after(250, self.toggle_camera)
 
             #Remove cv2 black border
             _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
