@@ -89,8 +89,8 @@ class DatabaseManager:
             "Name":""" 
                 CREATE TABLE IF NOT EXISTS Name (
                 Locker_No VARCHAR(5),
+                Locker_Size VARCHAR(50) NOT NULL,
                 Locker_Type VARCHAR(50) NOT NULL,
-                Locker_For VARCHAR(50) NOT NULL,
                 First_Name VARCHAR(50) NOT NULL,
                 Middle_Name VARCHAR(50),
                 Last_Name VARCHAR(50) NOT NULL,
@@ -101,7 +101,7 @@ class DatabaseManager:
             "Address": """
                     CREATE TABLE IF NOT EXISTS Address (
                     Locker_No VARCHAR(5),
-                    Locker_Type VARCHAR(50) NOT NULL,
+                    Locker_Size VARCHAR(50) NOT NULL,
                     Line1 VARCHAR(255) NOT NULL,
                     Line2 VARCHAR(255),
                     City VARCHAR(100) NOT NULL,
@@ -117,7 +117,7 @@ class DatabaseManager:
             "KYC": """
                     CREATE TABLE IF NOT EXISTS KYC (
                     Locker_No VARCHAR(5),                    
-                    Locker_Type VARCHAR(50) NOT NULL,
+                    Locker_Size VARCHAR(50) NOT NULL,
                     Adhaar BIGINT UNIQUE NOT NULL,
                     PAN VARCHAR(10) UNIQUE NOT NULL,
                     FOREIGN KEY (Locker_No) REFERENCES Name(Locker_No) ON DELETE CASCADE
@@ -127,12 +127,12 @@ class DatabaseManager:
             "Permissions": """
                     CREATE TABLE IF NOT EXISTS Permissions (
                     Locker_No VARCHAR(5),
-                    Locker_Type VARCHAR(50) NOT NULL,
-                    Person_1 VARCHAR(100) DEFAULT NULL,
-                    Person_2 VARCHAR(100) DEFAULT NULL,
-                    Person_3 VARCHAR(100) DEFAULT NULL,
-                    Person_4 VARCHAR(100) DEFAULT NULL,
-                    Person_5 VARCHAR(100) DEFAULT NULL,
+                    Locker_Size VARCHAR(50) NOT NULL,
+                    Nominee_1 VARCHAR(100) DEFAULT NULL,
+                    Nominee_2 VARCHAR(100) DEFAULT NULL,
+                    Nominee_3 VARCHAR(100) DEFAULT NULL,
+                    Nominee_4 VARCHAR(100) DEFAULT NULL,
+                    Nominee_5 VARCHAR(100) DEFAULT NULL,
                     FOREIGN KEY (Locker_No) REFERENCES Name(Locker_No) ON DELETE CASCADE
                 );
             """,
@@ -141,7 +141,7 @@ class DatabaseManager:
                     CREATE TABLE IF NOT EXISTS Visitors (
                     Visitor_ID INTEGER PRIMARY KEY AUTOINCREMENT,
                     Locker_No VARCHAR(5) NOT NULL,
-                    Locker_Type VARCHAR(50) NOT NULL,
+                    Locker_Size VARCHAR(50) NOT NULL,
                     Visitor_Name VARCHAR(255) NOT NULL,
                     Date DATE NOT NULL,
                     Entry_Time TIME NOT NULL,
@@ -152,23 +152,22 @@ class DatabaseManager:
             "OldLockers":"""
                     CREATE TABLE IF NOT EXISTS OldLockers (
                         Locker_No VARCHAR(5),
+                        Locker_Size VARCHAR(50) NOT NULL,
                         Locker_Type VARCHAR(50) NOT NULL,
-                        Locker_For VARCHAR(50) NOT NULL,
                         Name VARCHAR(255) NOT NULL,
                         Occipied_Date DATE NOT NULL,
                         Release_Date DATE NOT NULL,
                         Address VARCHAR(255),
                         Adhaar BIGINT UNIQUE NOT NULL,
                         PAN VARCHAR(10) UNIQUE NOT NULL,
-                        Person_1 VARCHAR(100) DEFAULT NULL,
-                        Person_2 VARCHAR(100) DEFAULT NULL,
-                        Person_3 VARCHAR(100) DEFAULT NULL,
-                        Person_4 VARCHAR(100) DEFAULT NULL,
-                        Person_5 VARCHAR(100) DEFAULT NULL);""",
+                        Nominee_1 VARCHAR(100) DEFAULT NULL,
+                        Nominee_2 VARCHAR(100) DEFAULT NULL,
+                        Nominee_3 VARCHAR(100) DEFAULT NULL,
+                        Nominee_4 VARCHAR(100) DEFAULT NULL,
+                        Nominee_5 VARCHAR(100) DEFAULT NULL);""",
         }
         
-        for table_name, query in TABLES.items():
-            self.cursor.execute(query)
+        for table_name, query in TABLES.items(): self.cursor.execute(query)
         self.connection.commit()
     
     def add_data(self, entries):
@@ -176,8 +175,8 @@ class DatabaseManager:
         queries = {"Name":
                             f"""INSERT INTO Name VALUES (
                                 "{entries["Locker No"]}", 
+                                '{entries["Locker Size"]}',
                                 '{entries["Locker Type"]}',
-                                '{entries["Locker For"]}',
                                 '{entries["First Name"]}', 
                                 '{entries["Middle Name"]}', 
                                 '{entries["Last Name"]}',
@@ -186,7 +185,7 @@ class DatabaseManager:
                         "Address":
                         f"""INSERT INTO Address VALUES (
                             "{entries["Locker No"]}", 
-                            '{entries["Locker Type"]}',
+                            '{entries["Locker Size"]}',
                             '{entries["Address Line 1"]}', 
                             '{entries["Address Line 2"]}', 
                             '{entries["City"]}', 
@@ -199,35 +198,61 @@ class DatabaseManager:
                         "KYC":
                         f"""INSERT INTO KYC VALUES (
                             "{entries["Locker No"]}",
-                            '{entries["Locker Type"]}', 
+                            '{entries["Locker Size"]}', 
                             {entries["Aadhaar ID"]}, 
                             '{entries["PAN ID"]}');""",
                         
                         "Permissions":
                         f"""INSERT INTO Permissions VALUES (
                             "{entries["Locker No"]}", 
-                            '{entries["Locker Type"]}',
-                            '{entries["Person 1"]}', 
-                            '{entries["Person 2"]}', 
-                            '{entries["Person 3"]}', 
-                            '{entries["Person 4"]}', 
-                            '{entries["Person 5"]}');"""}
+                            '{entries["Locker Size"]}',
+                            '{entries["Nominee 1"]}', 
+                            '{entries["Nominee 2"]}', 
+                            '{entries["Nominee 3"]}', 
+                            '{entries["Nominee 4"]}', 
+                            '{entries["Nominee 5"]}');"""}
         
         for table_name, query in queries.items():
             self.cursor.execute(query)    
             self.connection.commit()
 
-    def get_occupied_details(self):
-        details = {"Locker No" : [], "Locker Size":[], "Locker Type" : [], "Registration Date" : [], "Occupied By" : [], "Address" : [], "Addhaar ID": [], "PAN ID": [], "Permissioned Person 1" : [], 
-                   "Permissioned Person 2" : [], "Permissioned Person 3" : [], "Permissioned Person 4" : [], "Permissioned Person 5" : []}
+    def update_data(self, entries):
+        tables = {"Name" : {"First Name" : "First_Name", "Middle Name" : "Middle_Name", "Last Name" : "Last_Name"},
+                        "Address" : {"Address Line 1" : "Line1", "Address Line 2" : "Line2", "Country" : "Country", "State" : "State", "District" : "Dist", "Taluka" : "Tal", "City" : "City", "Pincode" : "Pin"},
+                        "KYC" : {"Aadhaar ID" : "Adhaar", "PAN ID" : "PAN"},
+                        "Permissions" : {"Nominee 1" : "Nominee_1", "Nominee 2" : "Nominee_2", "Nominee 3" : "Nominee_3", "Nominee 4" : "Nominee_4", "Nominee 5" : "Nominee_5"}}
         
-        self.cursor.execute("SELECT * FROM Name, Address, KYC, Permissions")
+        for title, new_data in entries.items():
+            if new_data!='NA' and title not in ["Locker No", "Locker Size", "Locker Type"]: 
+                for table_name, attributes in tables.items():
+                    if title in attributes: 
+                        query = f"UPDATE {table_name} SET {attributes[title]} = ? WHERE Locker_No = ? AND Locker_Size = ?"
+                        self.cursor.execute(query, (new_data, entries['Locker No'], entries["Locker Size"]))
+        self.connection.commit()
+        
+        data = list(DatabaseManager().get_occupied_details(entries['Locker No'], entries["Locker Size"]).values())
+        for i in range (1, 6):
+            if data[i+7][0] != entries[f"Nominee {i}"]:
+                query = f"UPDATE Permissions SET Nominee_{i} = ? WHERE Locker_No = ? AND Locker_Size = ?"
+                self.cursor.execute(query, (entries[f'Nominee {i}'], entries['Locker No'], entries["Locker Size"]))
+        self.connection.commit()
+
+    def get_occupied_details(self, locker_no=None, locker_size=None):
+        details = {"Locker No" : [], "Locker Size":[], "Locker Type" : [], "Registration Date" : [], "Occupied By" : [], "Address" : [], "Addhaar ID": [], "PAN ID": [], "Nominee 1" : [], 
+                   "Nominee 2" : [], "Nominee 3" : [], "Nominee 4" : [], "Nominee 5" : []}
+        
+        if locker_no and locker_size: self.cursor.execute("""SELECT * FROM Name, Address, KYC, Permissions WHERE Name.Locker_No = ? AND Name.Locker_Size = ? 
+                                                          AND Address.Locker_No = ? AND Address.Locker_Size = ? AND KYC.Locker_No = ? AND KYC.Locker_Size = ? 
+                                                          AND Permissions.Locker_No = ? AND Permissions.Locker_Size = ?""", (str(locker_no), locker_size, str(locker_no), locker_size, str(locker_no), locker_size, str(locker_no), locker_size))
+        
+        else: self.cursor.execute("""SELECT * FROM Name, Address, KYC, Permissions WHERE Name.Locker_No = Address.Locker_No AND Name.Locker_No = KYC.Locker_No AND Name.Locker_No = Permissions.Locker_No
+                                  AND Name.Locker_Size = Address.Locker_Size AND Name.Locker_Size = KYC.Locker_Size AND Name.Locker_Size = Permissions.Locker_Size""")
         all_data = self.cursor.fetchall()
         self.connection.commit()
         
         for data in all_data:
             name = f'{data[3]} {data[4]} {data[5]}'
-            address = f'{data[8]}, {data[9]}, {data[10]}, {data[11]}, {data[12]}, {data[13]}'
+            address = f'{data[9]}, {data[10]}, {data[11]}, {data[12]}, {data[13]}, {data[14]}, {data[15]}, {data[16]}'
             
             details["Locker No"].append(data[0])
             details["Locker Size"].append(data[1])
@@ -235,13 +260,13 @@ class DatabaseManager:
             details["Registration Date"].append(data[6])
             details["Occupied By"].append(name)
             details["Address"].append(address)
-            details["Addhaar ID"].append(data[17])
-            details["PAN ID"].append(data[18])
-            details["Permissioned Person 1"].append(data[20])
-            details["Permissioned Person 2"].append(data[21])
-            details["Permissioned Person 3"].append(data[22])
-            details["Permissioned Person 4"].append(data[23])
-            details["Permissioned Person 5"].append(data[24])
+            details["Addhaar ID"].append(data[19])
+            details["PAN ID"].append(data[20])
+            details["Nominee 1"].append(data[23])
+            details["Nominee 2"].append(data[24])
+            details["Nominee 3"].append(data[25])
+            details["Nominee 4"].append(data[26])
+            details["Nominee 5"].append(data[27])
         return details        
     
     def get_occupied_lockers(self):
@@ -259,7 +284,7 @@ class DatabaseManager:
         
         lockers = []
         occupied_types = {}
-        
+
         for rows in self.get_occupied_lockers():
             occupied_types[rows[0]] = rows[1]
             lockers.append(rows)
@@ -286,22 +311,22 @@ class DatabaseManager:
             pass
         self.create_tables()
         
-        for locker_type, locker in lockers.items():
+        for locker_size, locker in lockers.items():
             if locker[0] == "NA":
-                self.cursor.execute(f"INSERT INTO {locker_type} VALUES ('{locker[0]}', '{locker[1]}', '{locker[2]}', '{locker[3]}')")
+                self.cursor.execute(f"INSERT INTO {locker_size} VALUES ('{locker[0]}', '{locker[1]}', '{locker[2]}', '{locker[3]}')")
             else:
                 for index in range (len(locker[0])):
-                    self.cursor.execute(f"INSERT INTO {locker_type} VALUES ('{locker[0][index]}', '{locker[1][index]}', '{locker[2]}', '{locker[3]}')")
+                    self.cursor.execute(f"INSERT INTO {locker_size} VALUES ('{locker[0][index]}', '{locker[1][index]}', '{locker[2]}', '{locker[3]}')")
         self.connection.commit()
     
-    def get_depo_rent(self, locker_type):
-        self.cursor.execute(f"SELECT deposite, rent from {locker_type}")
+    def get_depo_rent(self, locker_size):
+        self.cursor.execute(f"SELECT deposite, rent from {locker_size}")
         data = self.cursor.fetchall()
         self.connection.commit()
         return data
 
     def get_rent_details(self):
-        self.cursor.execute("SELECT Locker_No, Locker_Type, First_Name, Middle_Name, Last_Name, Date from Name WHERE Locker_For = 'Rent'")
+        self.cursor.execute("SELECT Locker_No, Locker_Size, First_Name, Middle_Name, Last_Name, Date from Name WHERE Locker_Type = 'Rent'")
         data = self.cursor.fetchall()
         self.connection.commit()
         return data
@@ -310,9 +335,9 @@ class DatabaseManager:
         var = ["Small", "Medium", "Large"]
         lockers = {}
         temp = {}
-        for locker_type in var:
-            self.cursor.execute(f"SELECT * FROM {locker_type}")
-            temp[locker_type] = self.cursor.fetchall()
+        for locker_size in var:
+            self.cursor.execute(f"SELECT * FROM {locker_size}")
+            temp[locker_size] = self.cursor.fetchall()
         self.connection.commit()
         
         for types, locker in temp.items():
@@ -330,15 +355,15 @@ class DatabaseManager:
         temp.clear()
         return lockers
     
-    def set_visitors(self, locker_no, locker_type=None, visitor=None, entry_time=None, exit_time=None):
+    def set_visitors(self, locker_no, locker_size=None, visitor=None, entry_time=None, exit_time=None):
         if locker_no and entry_time and not exit_time:
             query = """
-                INSERT INTO Visitors (Locker_No, Locker_Type, Visitor_Name, Date, Entry_Time)
+                INSERT INTO Visitors (Locker_No, Locker_Size, Visitor_Name, Date, Entry_Time)
                 VALUES (?, ?, ?, ?, ?)
             """
             date_today = datetime.date.today().strftime("%Y-%m-%d")
             time_entry = entry_time.strftime("%H:%M:%S") if isinstance(entry_time, datetime.datetime) else entry_time
-            self.cursor.execute(query, (str(locker_no), locker_type, visitor, date_today, time_entry))
+            self.cursor.execute(query, (str(locker_no), locker_size, visitor, date_today, time_entry))
         else:
             query = """
                 UPDATE Visitors
@@ -351,13 +376,13 @@ class DatabaseManager:
     
     def get_visitors(self):
         date = datetime.date.today().strftime("%Y-%m-%d")
-        self.cursor.execute("SELECT Locker_Type, Locker_No, VIsitor_Name, Entry_Time, Exit_Time FROM Visitors WHERE Date == ?", (date,))
+        self.cursor.execute("SELECT Locker_Size, Locker_No, VIsitor_Name, Entry_Time, Exit_Time FROM Visitors WHERE Date == ?", (date,))
         data = self.cursor.fetchall()
         self.connection.commit()
         return data
 
     def get_visitors_details(self):
-        details = {"Sr No" : [], "Locker No" : [], "Visitor Name" : [], "Date" : [], "Entry Time": [], "Exit Time": []}
+        details = {"Sr No" : [], "Locker No" : [], "Locker Size" : [], "Visitor Name" : [], "Date" : [], "Entry Time": [], "Exit Time": []}
         self.cursor.execute("SELECT * FROM Visitors")
         all_data = self.cursor.fetchall()
         self.connection.commit()
@@ -367,8 +392,8 @@ class DatabaseManager:
                 details[column_title].append(data[index])
         return details
         
-    def releaseLocker(self, locker_num, locker_type):
-        self.cursor.execute("SELECT * FROM Name, Address, KYC, Permissions WHERE Name.Locker_No = ? AND Name.Locker_Type = ?", (str(locker_num), locker_type))
+    def releaseLocker(self, locker_num, locker_size):
+        self.cursor.execute("SELECT * FROM Name, Address, KYC, Permissions WHERE Name.Locker_No = ? AND Name.Locker_Size = ?", (str(locker_num), locker_size))
         data = self.cursor.fetchall()[0]
         self.connection.commit()
         name = f'{data[3]} {data[4]} {data[5]}'
@@ -378,15 +403,15 @@ class DatabaseManager:
         self.cursor.execute(f"INSERT INTO OldLockers VALUES ('{str(data[0])}', '{data[1]}', '{data[2]}', '{name}', '{data[6]}', '{date}', '{address}', '{data[19]}', '{data[20]}', '{data[23]}', '{data[24]}', '{data[25]}', '{data[26]}', '{data[27]}')")
         self.connection.commit()
         
-        self.cursor.execute(f"DELETE FROM Name WHERE Locker_No = {str(locker_num)} AND Locker_Type = '{locker_type}'")
-        self.cursor.execute(f"DELETE FROM Address WHERE Locker_No = { str(locker_num)} AND Locker_Type = '{locker_type}'")
-        self.cursor.execute(f"DELETE FROM KYC WHERE Locker_No = {str(locker_num)} AND Locker_Type = '{locker_type}'")
-        self.cursor.execute(f"DELETE FROM Permissions WHERE Locker_No = {str(locker_num)} AND Locker_Type = '{locker_type}'")
+        self.cursor.execute(f"DELETE FROM Name WHERE Locker_No = {str(locker_num)} AND Locker_Size = '{locker_size}'")
+        self.cursor.execute(f"DELETE FROM Address WHERE Locker_No = { str(locker_num)} AND Locker_Size = '{locker_size}'")
+        self.cursor.execute(f"DELETE FROM KYC WHERE Locker_No = {str(locker_num)} AND Locker_Size = '{locker_size}'")
+        self.cursor.execute(f"DELETE FROM Permissions WHERE Locker_No = {str(locker_num)} AND Locker_Size = '{locker_size}'")
         self.connection.commit()
         
     def get_old_customer_details(self):
-        details = {"Locker No" : [], "Locker Type" : [],"Locker For" : [], "Occupied By" : [], "Occupied On" : [], "Released On":[], "Address" : [], "Addhaar ID": [], "PAN ID": [], "Permissioned Person 1" : [], 
-                   "Permissioned Person 2" : [], "Permissioned Person 3" : [], "Permissioned Person 4" : [], "Permissioned Person 5" : []}
+        details = {"Locker No" : [], "Locker Size" : [],"Locker Type" : [], "Occupied By" : [], "Occupied On" : [], "Released On":[], "Address" : [], "Addhaar ID": [], "PAN ID": [], "Nominee 1" : [], 
+                   "Nominee 2" : [], "Nominee 3" : [], "Nominee 4" : [], "Nominee 5" : []}
         
         self.cursor.execute("SELECT * FROM OldLockers")
         all_data = self.cursor.fetchall()
@@ -401,7 +426,7 @@ class DatabaseManager:
         query = f"DROP TABLE {table_name};"
         self.cursor.execute(query)
         self.connection.commit()
-        
+
 #--------------------------------------- District and Tal Database --------------------------------------
 class DistDatabase:
     def __init__(self):
@@ -603,12 +628,12 @@ class DetectionFrame(customtkinter.CTkToplevel):
 
 #-------------------------------------- Custom Combobox design -------------------------------------        
 class SearchableComboBox:
-    def __init__(self, main_master, master, options, width=200):
+    def __init__(self, main_master, master, placeholder, options, width=200):
         self.options = options
         self.flag = False
 
         self.frame = customtkinter.CTkFrame(master, fg_color="transparent", corner_radius=10)
-        self.entry = customtkinter.CTkEntry(self.frame, width=width - 35, corner_radius=10)
+        self.entry = customtkinter.CTkEntry(self.frame, placeholder_text=placeholder, width=width - 35, corner_radius=10)
         self.entry.pack(side=tkinter.LEFT, padx=(0, 5))
         self.entry.bind("<KeyRelease>", self.on_entry_key)
         self.entry.bind("<FocusIn>", self.show_dropdown)
@@ -665,14 +690,14 @@ class SearchableComboBox:
         self.frame.place(**kwargs)
 
 #-------------------------------------------- Form to get data -----------------------------------------    
-class Form:
-    def updatemsg(self, msg, locker_type, locker_for):
-        Deposite, Rent = DatabaseManager().get_depo_rent(locker_type)[0]
+class MainForm:
+    def updatemsg(self, msg, locker_size, locker_type):
+        Deposite, Rent = DatabaseManager().get_depo_rent(locker_size)[0]
         data = {"Deposite":Deposite, "Rent":Rent}
-        msg.configure(text=f"For {locker_type} Locker {locker_for} : {data[locker_for]}")
+        msg.configure(text=f"For {locker_size} Locker {locker_type} : {data[locker_type]}")
     
-    def Set_data(self, locker_number, locker_type):
-        self.entry_vars = {"Locker No" : f'{locker_number}', "Locker Type" : locker_type}
+    def Set_data(self, locker_number, locker_size, data=None):
+        self.entry_vars = {"Locker No" : f'{locker_number}', "Locker Size" : locker_size}
 
         # New Window
         newCTk = tkinter.Toplevel()
@@ -695,22 +720,21 @@ class Form:
             label = customtkinter.CTkLabel(parent, text=text, font=("Arial", 14, "bold"))
             label.grid(row=row, column=column, padx=(20, 5), pady=(0, 20), sticky="wns")
 
-            # entry_var = tkinter.StringVar()
             if text in ["Country:", "State:", "District:", "Taluka:", "City:", "Pincode:"]:
-                entry = SearchableComboBox(main, parent, options=values, width=width)
+                entry = SearchableComboBox(main, parent, placeholder=placeholder, options=values, width=width)
                 entry.grid(row=row, column=column + 1, padx=(5, 1), pady=(0, 20), sticky="wns")
                 
-            elif text == "Locker For:":
+            elif text == "Locker Type:":
                 entry = customtkinter.CTkOptionMenu(parent, values=values, width=width, corner_radius=5)
                 entry.grid(row=row, column=column + 1, padx=(5, 1), pady=(0, 20), sticky="wns")
                 msg = customtkinter.CTkLabel(parent, text="", font=("", 18, "bold"))
                 msg.grid(row=row, column=column+2, padx=(75,1), pady=(0, 20), sticky="e")
                 
-                self.updatemsg(msg, locker_type, "Deposite")
-                entry.configure(command=lambda locker_for=entry.get() : self.updatemsg(msg, locker_type, locker_for))
+                self.updatemsg(msg, locker_size, data[2][0] if data else "Deposite")
+                entry.configure(command=lambda locker_type=entry.get() : self.updatemsg(msg, locker_size, locker_type))
                     
             elif text in ["Address Line 1:", "Address Line 2:"]: 
-                entry = customtkinter.CTkEntry(parent, width=width, corner_radius=5)
+                entry = customtkinter.CTkEntry(parent, placeholder_text=placeholder, width=width, corner_radius=5)
                 entry.grid(row=row, column=column + 1, columnspan=6, padx=(5, 20), pady=(0, 20), sticky="wns")
             else:
                 entry = customtkinter.CTkEntry(parent, placeholder_text=placeholder, width=width, corner_radius=5)
@@ -741,49 +765,62 @@ class Form:
         def set_details():
             entries = {}
             for key, var in self.entry_vars.items():
-                if key == "Locker No" or key == "Locker Type": entries[key] = var
+                if key == "Locker No" or key == "Locker Size": entries[key] = var
                 elif var.get() == "": entries[key] = "NA"
                 else: entries[key] = var.get()
             
-            DatabaseManager().add_data(entries)
-            messagebox.showinfo("Success", "Locker Details Saved, Please capture images for Facing recognition process....")
+            if data: 
+                DatabaseManager().update_data(entries)
+                messagebox.showinfo("Success", "Locker Details Updated")
+            else:
+                DatabaseManager().add_data(entries)
+                messagebox.showinfo("Success", "Locker Details Saved, Please capture images for Facial Recognition Process ........")
             newCTk.destroy()
             
-            peoples = [f'{entries["First Name"]} {entries["Middle Name"]} {entries["Last Name"]}']
-            for i in range (1, 6): 
-                if entries[f"Person {i}"]: peoples.append(entries[f'Person {i}'])
-            for person in peoples: 
-                if person not in ["NA", ""]: DetectionFrame(person).wait_window()
+            if data:
+                peoples = []
+                for i in range (1, 6): 
+                    if entries[f"Nominee {i}"]: peoples.append(entries[f'Nominee {i}'])
+                for Nominee in peoples: 
+                    if Nominee not in ["NA", ""]: 
+                        messagebox.showinfo("Capture Image", f"Please capture images for Facial Recognition Process of {Nominee}")
+                        DetectionFrame(Nominee).wait_window()
+            else:
+                peoples = [f'{entries["First Name"]} {entries["Middle Name"]} {entries["Last Name"]}']
+                for i in range (1, 6): 
+                    if entries[f"Nominee {i}"]: peoples.append(entries[f'Nominee {i}'])
+                for Nominee in peoples: 
+                    if Nominee not in ["NA", ""]: DetectionFrame(Nominee).wait_window()
                 
-            self.entry_vars.clear(); entries.clear()
+            # self.entry_vars.clear(); entries.clear()
 
         customtkinter.CTkButton(newCTk, text="Save", width=150, height=50,font=("Calibri", 20, "bold"), command=set_details).grid(row=1, column=1, padx=20, pady=20)
 
-        locker_for = section_frame("Locker Information", main_frame, 1)
-        create_label_entry(locker_for, "Locker For:", 1, 0, width=300, main=main_frame, values=["Deposite", "Rent"])
+        locker_type = section_frame("Locker Information", main_frame, 1)
+        create_label_entry(locker_type, "Locker Type:", 1, 0, width=300, main=main_frame, values=data[2] if data else ["Deposite", "Rent"])
         
         basic_info = section_frame("Basic Information", main_frame, 2)
-        create_label_entry(basic_info, "First Name:", 1, 0, 175)
-        create_label_entry(basic_info, "Middle Name:", 1, 2, 175)
-        create_label_entry(basic_info, "Last Name:", 1, 4, 175)
+        create_label_entry(basic_info, "First Name:", 1, 0, 175, placeholder=data[4][0].split()[0] if data else "")
+        create_label_entry(basic_info, "Middle Name:", 1, 2, 175, placeholder=data[4][0].split()[1] if data else "")
+        create_label_entry(basic_info, "Last Name:", 1, 4, 175, placeholder=data[4][0].split()[2] if data else "")
 
         address = section_frame("Address", main_frame, 3)
-        create_label_entry(address, "Address Line 1:", 1)
-        create_label_entry(address, "Address Line 2:", 2)
-        create_label_entry(address, "Country:", 3, 0, width=175, main=main_frame ,values=["India"])
-        create_label_entry(address, "State:", 3, 2, width=175, main=main_frame, values=["Maharastra"])
-        create_label_entry(address, "District:", 3, 4, width=175, main=main_frame, values=DistDatabase().getDistricts())
-        create_label_entry(address, "Taluka:", 4, 0, width=175, main=main_frame, values=DistDatabase().getTalukas())
-        create_label_entry(address, "City:", 4, 2, width=175, main=main_frame, values=DistDatabase().getCities())
-        create_label_entry(address, "Pincode:", 4, 4, width=175, main=main_frame, values=DistDatabase().getPincode())
+        create_label_entry(address, "Address Line 1:", 1, placeholder=data[5][0].split(",")[0] if data else "")
+        create_label_entry(address, "Address Line 2:", 2, placeholder=data[5][0].split(",")[1] if data else "")
+        create_label_entry(address, "Country:", 3, 0, width=175, main=main_frame ,placeholder=data[5][0].split(",")[6] if data else "", values=["India"])
+        create_label_entry(address, "State:", 3, 2, width=175, main=main_frame, placeholder=data[5][0].split(",")[5] if data else "", values=["Maharastra"])
+        create_label_entry(address, "District:", 3, 4, width=175, main=main_frame, placeholder=data[5][0].split(",")[3] if data else "", values=DistDatabase().getDistricts())
+        create_label_entry(address, "Taluka:", 4, 0, width=175, main=main_frame, placeholder=data[5][0].split(",")[4] if data else "", values=DistDatabase().getTalukas())
+        create_label_entry(address, "City:", 4, 2, width=175, main=main_frame, placeholder=data[5][0].split(",")[2] if data else "", values=DistDatabase().getCities())
+        create_label_entry(address, "Pincode:", 4, 4, width=175, main=main_frame, placeholder=data[5][0].split(",")[7] if data else "", values=DistDatabase().getPincode())
 
         kyc = section_frame("KYC Details", main_frame, 4)
-        create_label_entry(kyc, "Aadhaar ID:", 1, column=0, width=330)
-        create_label_entry(kyc, "PAN ID:", 1, column=2, width=330)
+        create_label_entry(kyc, "Aadhaar ID:", 1, column=0, width=330, placeholder=data[6][0] if data else "")
+        create_label_entry(kyc, "PAN ID:", 1, column=2, width=330, placeholder=data[7][0] if data else "")
 
         permission = section_frame("Nominees", main_frame, 5)
         for i in range(1, 6):
-            create_label_entry(permission, f"Person {i}:", i, placeholder="\t\t First Name \t\t\t Middle Name \t\t\t Last Name")
+            create_label_entry(permission, f"Nominee {i}:", i, placeholder=data[i+7][0] if data and data[i+7][0]!="NA" else "\t\t First Name \t\t\t Middle Name \t\t\t Last Name")
 
 #------------------------------------ Getting Lockers Types and count ---------------------------------
 class LockerManager(customtkinter.CTkToplevel):
@@ -971,11 +1008,11 @@ class LockerLayoutBase(customtkinter.CTkToplevel):
         self.views.grid(row=1, column=1, sticky="nsew", padx=10, pady=(40, 20))
 
         # Locker layout per type
-        for locker_type, (occupied, size, column, pad, partition, total_lockers) in locker_data.items():
-            self.views.add(locker_type)
+        for locker_size, (occupied, size, column, pad, partition, total_lockers) in locker_data.items():
+            self.views.add(locker_size)
 
             if partition:
-                partitions = customtkinter.CTkTabview(self.views.tab(locker_type), width=1000, corner_radius=10)
+                partitions = customtkinter.CTkTabview(self.views.tab(locker_size), width=1000, corner_radius=10)
                 partitions.grid(row=1, column=1, sticky="nsew")
                 for i, section in enumerate(partition):
                     tab_name = section
@@ -986,7 +1023,7 @@ class LockerLayoutBase(customtkinter.CTkToplevel):
 
                     self.generate_buttons(occupied, size, column, pad, scrollFrame, button_callback, tab_name, int(total_lockers[i]), filter_func, button_state_func)
             else:
-                scrollFrame = customtkinter.CTkScrollableFrame(self.views.tab(locker_type), width=1000, height=800, corner_radius=10)
+                scrollFrame = customtkinter.CTkScrollableFrame(self.views.tab(locker_size), width=1000, height=800, corner_radius=10)
                 scrollFrame.grid(padx=10, pady=10, sticky="nsew")
                 scrollFrame.columnconfigure(tuple(range(column)), weight=1)
 
@@ -1009,7 +1046,7 @@ class LockerLayoutBase(customtkinter.CTkToplevel):
 class ShowAllLockers(LockerLayoutBase):
     def __init__(self):
         locker_data = self.prepare_data()
-        super().__init__(locker_data, self.select_callback, self.filter_all_lockers, self.disable_occupied_lockers, Settings.TITLE)
+        super().__init__(locker_data, self.select_callback, self.filter_all_lockers, self.disable_occupied_lockers, f"{Settings.TITLE} - Add new Locker")
     
     def prepare_data(self):
         occupied = {"Small": [], "Medium": [], "Large": []}
@@ -1036,15 +1073,17 @@ class ShowAllLockers(LockerLayoutBase):
     def disable_occupied_lockers(self, locker_id, occupied):
         return "disabled" if locker_id in occupied else "normal"
 
-    def select_callback(self, locker_num, locker_type):
+    def select_callback(self, locker_num, locker_size):
         self.destroy()
-        Form().Set_data(locker_num, locker_type=locker_type)
+        MainForm().Set_data(locker_num, locker_size)
 
 #------------------------------------ Showing occupied lockers only ------------------------------------
 class ReleaseLocker(LockerLayoutBase):
-    def __init__(self):
+    def __init__(self, flag=False):
+        self.flag = flag
+        title = f"{Settings.TITLE} - Release Locker" if flag else f"{Settings.TITLE} - Update Locker"
         locker_data = self.prepare_data()
-        if locker_data: super().__init__(locker_data, self.release_callback, self.filter_occupied_only, self.enable_all, Settings.TITLE)
+        if locker_data: super().__init__(locker_data, self.release_callback, self.filter_occupied_only, self.enable_all, title)
 
     def prepare_data(self):
         occupied = {"Small": [], "Medium": [], "Large": []}
@@ -1090,11 +1129,15 @@ class ReleaseLocker(LockerLayoutBase):
     def enable_all(self, locker_id, occupied):
         return "normal"
 
-    def release_callback(self, locker_num, locker_type):
-        if messagebox.askyesno("Confirm Release", f"Do you want to release locker {locker_num}?"):
-            messagebox.showinfo("Locker Released", f"Locker {locker_num} has been successfully released.")
-            DatabaseManager().releaseLocker(locker_num, locker_type)
-            self.destroy()
+    def release_callback(self, locker_num, locker_size):
+        if self.flag == True:
+            if messagebox.askyesno("Confirm Release", f"Do you want to release locker {locker_num}?"):
+                messagebox.showinfo("Locker Released", f"Locker {locker_num} has been successfully released.")
+                DatabaseManager().releaseLocker(locker_num, locker_size)
+                self.destroy()
+        elif self.flag == False:
+            data = list(DatabaseManager().get_occupied_details(locker_num, locker_size).values())
+            MainForm().Set_data(data[0][0], data[1][0], data)
               
 #----------------------------------------- Saving to Excel file -------------------------------------------  
 class GetIntoExcel:
@@ -1200,7 +1243,8 @@ class GUI(customtkinter.CTk):
         MENU.add_cascade(label="Export", menu=FILEMENU4)
         
         FILEMENU1.add_command(label="Add Locker", activebackground="#0A84FF", command=ShowAllLockers)
-        FILEMENU1.add_command(label="Release Locker",  activebackground="#0A84FF", command=ReleaseLocker)
+        FILEMENU1.add_command(label="Release Locker",  activebackground="#0A84FF", command=lambda : ReleaseLocker(True))
+        FILEMENU1.add_command(label="Update Locker",  activebackground="#0A84FF", command=ReleaseLocker)
         FILEMENU1.add_command(label="Rent Details",  activebackground="#0A84FF", command=RentManager)
         FILEMENU1.add_separator()
         FILEMENU1.add_command(label="Exit", activebackground="#0A84FF", command=self.destroy)
@@ -1354,9 +1398,9 @@ class GUI(customtkinter.CTk):
         entry_time = datetime.datetime.now().strftime("%T")
         self.logs[match] = {"Entry": entry_time, "Exit": None}
         try:
-            self.locker_no, self.locker_type = self.getlockers(match) 
+            self.locker_no, self.locker_size = self.getlockers(match) 
             self.entries[self.counter] = [self.locker_no, match, entry_time]
-            DatabaseManager().set_visitors(self.locker_no, self.locker_type, match, entry_time=entry_time)
+            DatabaseManager().set_visitors(self.locker_no, self.locker_size, match, entry_time=entry_time)
             self.visitors_info()
             self.current_person = match
             self.entry_detected = True  
