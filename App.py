@@ -222,19 +222,12 @@ class DatabaseManager:
                         "KYC" : {"Aadhaar ID" : "Adhaar", "PAN ID" : "PAN"},
                         "Permissions" : {"Nominee 1" : "Nominee_1", "Nominee 2" : "Nominee_2", "Nominee 3" : "Nominee_3", "Nominee 4" : "Nominee_4", "Nominee 5" : "Nominee_5"}}
         
-        for title, new_data in entries.items():
-            if new_data!='NA' and title not in ["Locker No", "Locker Size", "Locker Type"]: 
+        for column, new_data in entries.items():
+            if column not in ["Locker No", "Locker Size", "Locker Type"]: 
                 for table_name, attributes in tables.items():
-                    if title in attributes: 
-                        query = f"UPDATE {table_name} SET {attributes[title]} = ? WHERE Locker_No = ? AND Locker_Size = ?"
+                    if column in attributes:
+                        query = f"UPDATE {table_name} SET {attributes[column]} = ? WHERE Locker_No = ? AND Locker_Size = ?"
                         self.cursor.execute(query, (new_data, entries['Locker No'], entries["Locker Size"]))
-        self.connection.commit()
-        
-        data = list(DatabaseManager().get_occupied_details(entries['Locker No'], entries["Locker Size"]).values())
-        for i in range (1, 6):
-            if data[i+7][0] != entries[f"Nominee {i}"]:
-                query = f"UPDATE Permissions SET Nominee_{i} = ? WHERE Locker_No = ? AND Locker_Size = ?"
-                self.cursor.execute(query, (entries[f'Nominee {i}'], entries['Locker No'], entries["Locker Size"]))
         self.connection.commit()
 
     def get_occupied_details(self, locker_no=None, locker_size=None):
@@ -283,25 +276,23 @@ class DatabaseManager:
         self.connection.commit()
         
         lockers = []
-        occupied_types = {}
+        occupied_size = {}
 
         for rows in self.get_occupied_lockers():
-            occupied_types[rows[0]] = rows[1]
-            lockers.append(rows)
-        
+            occupied_size[rows[0]] = rows[1]
+            lockers.append(rows[0 : 6])
+
         for rows in temp_lockers:
             temp = ()
-            num = ""
-            for index, name in enumerate(rows):
-                if index==0:
-                    num = name
-                else:
-                    temp+=(num, occupied_types[num])
-                    if name not in ["NA", ""]:
-                        temp+=tuple(name.split(" "),)
-                        lockers.append(temp)
-                    temp = ()
-        
+            locker_num = rows[0]
+            locker_size = rows[1]
+            
+            for data in rows[2:]:
+                temp += (locker_num, locker_size, "")
+                if data.lower() not in ["na", ""]:
+                    temp += tuple(data.split(" "), )
+                    lockers.append(temp)
+                temp = ()
         return lockers
 
     def set_lockers(self, lockers):
@@ -508,30 +499,32 @@ class Datasets(Settings):
 class DetectionFrame(customtkinter.CTkToplevel):
     def __init__(self, person):
         super().__init__()
-        
+
         self.person = person
         self.title(Settings.TITLE)
         self.iconbitmap(Settings.ICON)
         self.after(1000, self.state, "zoomed")
-        self.after(250, lambda : self.iconbitmap(Settings.ICON))
+        self.after(250, lambda: self.iconbitmap(Settings.ICON))
 
         self.checking = False
         self.camera_running = False
         self.counter = 0
+        self.latest_frame = None
 
         self.label_frame = customtkinter.CTkFrame(self, corner_radius=20)
         self.label_frame.pack(pady=40)
-        
+
         self.label = customtkinter.CTkLabel(self.label_frame, text="", width=800, height=600)
         self.label.pack(pady=10)
 
         self.note = customtkinter.CTkLabel(self, text=f"Capturing images for {person}", font=("Arial", 28, "bold"))
         self.note.pack(pady=20)
-        
+
         self.status = customtkinter.CTkLabel(self, text="", font=("Arial", 26))
         self.status.pack(pady=20)
 
-        self.button = customtkinter.CTkButton(self, text="🎥 Start Capturing", font=("Arial", 22, "bold"), width=300, height=50, command=self.toggle_camera)
+        self.button = customtkinter.CTkButton(self, text="🎥 Start Capturing", font=("Arial", 22, "bold"),
+                                              width=300, height=50, command=self.toggle_camera)
         self.button.pack(pady=10)
 
         self.protocol("WM_DELETE_WINDOW", self.close_window)
@@ -557,6 +550,8 @@ class DetectionFrame(customtkinter.CTkToplevel):
         threading.Event().wait(5)
         self.checking = True
         self.status.configure(text="Capturing face samples...")
+        self.face_thread = threading.Thread(target=self.process_faces_in_background, daemon=True)
+        self.face_thread.start()
 
     def stop_camera(self):
         self.camera_running = False
@@ -565,7 +560,8 @@ class DetectionFrame(customtkinter.CTkToplevel):
         self.label.configure(image=None)
         self.status.configure(text="Camera stopped.")
         self.button.configure(text="🎥 Start Capturing")
-        self.camera.release()
+        if hasattr(self, "camera"):
+            self.camera.release()
         cv2.destroyAllWindows()
 
     def update_frame(self):
@@ -576,51 +572,55 @@ class DetectionFrame(customtkinter.CTkToplevel):
         if not ret:
             return
 
-        display_frame = frame.copy()
-        display_frame = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
-        
+        self.latest_frame = frame.copy()
+
+        display_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
-        if self.checking:
-            faces = Settings.MODEL.detectMultiScale(gray, 1.3, 5)
-            save_path = Datasets().Store_samples(self.person)
-
-            for (x, y, w, h) in faces:
-                if (x, y, w, h):
-                    face = gray[y:y+h, x:x+w]
-                    self.counter += 1
-                    cv2.imwrite(f"{save_path}/{self.counter}.jpg", face)
-                    cv2.rectangle(display_frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-            if self.counter >= Settings.SAMPLES:
-                self.status.configure(text="Images stored successfully.")
-                self.camera_running = False
-                self.checking = False
-                self.counter = 0
-                self.label.configure(image=None)
-                self.button.configure(text="🎥 Capturing Again")
-                self.camera.release()
-                cv2.destroyAllWindows()
-        
-        #Remove cv2 black border
+        # Remove black border
         _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
         x, y, w, h = cv2.boundingRect(thresh)
-        display_frame = display_frame[y:y+(h-10), x:x+w]
-
-        # Draw rounded image for UI
+        display_frame = display_frame[y:y + (h - 10), x:x + w]
+        
         img = Image.fromarray(display_frame)
         img = img.resize((800, 600))
-        
+
         mask = Image.new("L", (800, 600), 0)
         draw = ImageDraw.Draw(mask)
         draw.rounded_rectangle((0, 0, 800, 600), fill=255, radius=20)
-        
+
         img.putalpha(mask)
         photo = customtkinter.CTkImage(light_image=img, size=(800, 600))
         self.label.configure(image=photo)
 
         if self.camera_running:
             self.after(10, self.update_frame)
+
+    def process_faces_in_background(self):
+        save_path = Datasets().Store_samples(self.person)
+        while self.camera_running and self.checking and self.counter < Settings.SAMPLES:
+            if self.latest_frame is None: continue
+
+            frame = self.latest_frame
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = Settings.MODEL.detectMultiScale(gray, 1.3, 5)
+
+            for (x, y, w, h) in faces:
+                if self.counter >= Settings.SAMPLES: break
+                face = gray[y:y + h, x:x + w]
+                self.counter += 1
+                cv2.imwrite(f"{save_path}/{self.counter}.jpg", face)
+            cv2.waitKey(50)
+
+        self.status.configure(text="Images stored successfully.")
+        self.camera_running = False
+        self.checking = False
+        self.counter = 0
+        self.label.configure(image=None)
+        self.button.configure(text="🎥 Capturing Again")
+        if hasattr(self, "camera"):
+            self.camera.release()
+        cv2.destroyAllWindows()
 
     def close_window(self):
         self.stop_camera()
@@ -700,7 +700,7 @@ class MainForm:
         self.entry_vars = {"Locker No" : f'{locker_number}', "Locker Size" : locker_size}
 
         # New Window
-        newCTk = tkinter.Toplevel()
+        newCTk = customtkinter.CTkToplevel()
         newCTk.title(f"{Settings.TITLE} - Saving Data for Locker {locker_number}")
         newCTk.after(250, lambda : newCTk.iconbitmap(Settings.ICON))
         newCTk.after(500, lambda: newCTk.state("zoomed"))
@@ -766,33 +766,32 @@ class MainForm:
             entries = {}
             for key, var in self.entry_vars.items():
                 if key == "Locker No" or key == "Locker Size": entries[key] = var
-                elif var.get() == "": entries[key] = "NA"
+                elif var.get() == "" and not data: entries[key] = "NA"
+                elif var.get() == "" and data: continue  
                 else: entries[key] = var.get()
             
-            if data: 
-                DatabaseManager().update_data(entries)
-                messagebox.showinfo("Success", "Locker Details Updated")
-            else:
-                DatabaseManager().add_data(entries)
-                messagebox.showinfo("Success", "Locker Details Saved, Please capture images for Facial Recognition Process ........")
+            if data: DatabaseManager().update_data(entries)
+            else: DatabaseManager().add_data(entries)
+            messagebox.showinfo("Success", "Locker Details Updated." if data else "Locker Details Saved.")
             newCTk.destroy()
             
             if data:
                 peoples = []
                 for i in range (1, 6): 
-                    if entries[f"Nominee {i}"]: peoples.append(entries[f'Nominee {i}'])
+                    try: peoples.append(entries[f'Nominee {i}'])
+                    except: pass
                 for Nominee in peoples: 
                     if Nominee not in ["NA", ""]: 
                         messagebox.showinfo("Capture Image", f"Please capture images for Facial Recognition Process of {Nominee}")
                         DetectionFrame(Nominee).wait_window()
             else:
                 peoples = [f'{entries["First Name"]} {entries["Middle Name"]} {entries["Last Name"]}']
-                for i in range (1, 6): 
-                    if entries[f"Nominee {i}"]: peoples.append(entries[f'Nominee {i}'])
+                for i in range (1, 6): peoples.append(entries[f'Nominee {i}'])
                 for Nominee in peoples: 
-                    if Nominee not in ["NA", ""]: DetectionFrame(Nominee).wait_window()
-                
-            # self.entry_vars.clear(); entries.clear()
+                    if Nominee not in ["NA", ""]: 
+                        messagebox.showinfo("Capture Image", f"Please capture images for Facial Recognition Process of {Nominee}")
+                        DetectionFrame(Nominee).wait_window()
+            self.entry_vars.clear(); entries.clear()
 
         customtkinter.CTkButton(newCTk, text="Save", width=150, height=50,font=("Calibri", 20, "bold"), command=set_details).grid(row=1, column=1, padx=20, pady=20)
 
@@ -1308,6 +1307,7 @@ class GUI(customtkinter.CTk):
             self.table.insert("", "end", values=data)
 
     def initilize(self):
+        self.choosenLocker = None
         self.checking = False
         self.wait_thread = None
         self.current_person = None
@@ -1316,13 +1316,46 @@ class GUI(customtkinter.CTk):
         self.camera_running = False
         self.logs = {} 
 
+    def selectlocker(self, person, lockers):
+        newCTk = customtkinter.CTkToplevel()
+        newCTk.title(f'{Settings.TITLE} - Select your locker')
+        newCTk.after(250, lambda : newCTk.iconbitmap(Settings.ICON))
+        width_of_window = 500
+        height_of_window = int(f"{len(lockers)}00")
+
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x_coordinate = (screen_width/2)-(width_of_window/2)
+        y_coordinate = (screen_height/2)-(height_of_window/2)
+        newCTk.geometry("%dx%d+%d+%d" %(width_of_window,height_of_window,x_coordinate,y_coordinate))
+        
+        newCTk.focus()
+        newCTk.grab_set()
+        newCTk.lift()
+        newCTk.attributes('-topmost', True)
+        newCTk.after(10, lambda: newCTk.attributes('-topmost', False))
+        
+        def selectedlocker(data):
+            self.choosenLocker = data
+            newCTk.destroy()
+
+        customtkinter.CTkLabel(newCTk, text=f"Mr./Miss {person} \nWhich locker you want to access ?", font=("", 18, 'bold')).pack(padx=20, pady=20)
+        
+        for index, locker in enumerate(lockers):
+            customtkinter.CTkRadioButton(newCTk, text=f"{locker[1]} - {locker[0]}", value=index, command=lambda data=locker: selectedlocker(data)).pack(padx=20, pady=10)
+            
+        self.wait_window(newCTk)
+        return self.choosenLocker
+
     def getlockers(self, match):
         lockers = DatabaseManager().get_locker_owners()
+        locker_details = []
         if lockers:
             for rows in lockers:
-                if f'{rows[3]} {rows[4]} {rows[5]}' == match: return rows[0], rows[1]
-        else:
-            return False
+                if f'{rows[3]} {rows[4]} {rows[5]}' == match: locker_details.append((rows[0], rows[1]))
+            if len(locker_details) > 1: return self.selectlocker(match, locker_details)
+            elif locker_details: return locker_details[0]
+        return False
             
     def toggle_camera(self):
         if self.camera_running:
