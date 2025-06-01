@@ -565,12 +565,10 @@ class DetectionFrame(customtkinter.CTkToplevel):
         cv2.destroyAllWindows()
 
     def update_frame(self):
-        if not self.camera_running:
-            return
+        if not self.camera_running: return
 
         ret, frame = self.camera.read()
-        if not ret:
-            return
+        if not ret: return
 
         self.latest_frame = frame.copy()
 
@@ -1380,7 +1378,10 @@ class GUI(customtkinter.CTk):
             self.start_wait(init=True, onEnter=False, onExit=False)
             self.camera_window()
                 
-    def getFaces(self, gray, frame):
+    def update_match_result(self, match):
+        self.match = match
+    
+    def run_face_recognition(self, gray, frame):
         faces = Settings.MODEL.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
         match = "Unknown"
         for (x, y, w, h) in faces:
@@ -1388,7 +1389,12 @@ class GUI(customtkinter.CTk):
             self.checking = False
             match = Datasets().Recognize(face_frame)
             self.checking = True
-        return match
+        self.after(0, lambda: self.update_match_result(match))
+    
+    def start_face_thread(self, gray, frame):
+        if not hasattr(self, "face_thread") or not self.face_thread.is_alive():
+            self.face_thread = threading.Thread(target=self.run_face_recognition, args=(gray.copy(), frame.copy()), daemon=True)
+            self.face_thread.start()
     
     def camera_window(self):      
         ret, frame = self.camera.read()
@@ -1397,7 +1403,10 @@ class GUI(customtkinter.CTk):
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             match = "Unknown"
             
-            if self.checking: match = self.getFaces(gray, frame)
+            if self.checking: 
+                self.start_face_thread(gray, frame)
+                if self.match : match = self.match
+            
             if match != "Unknown" and match !="No faces registered":
                 if match not in self.logs and not self.entry_detected: self.record_entry(match)
                 elif match == self.current_person and self.entry_detected and self.waiting_for_exit: self.record_exit(match)
@@ -1425,7 +1434,7 @@ class GUI(customtkinter.CTk):
             self.camera_label.configure(image = photo)
         
         if self.camera_running:
-            self.after(5, self.camera_window)
+            self.after(30, self.camera_window)
     
     def record_entry(self, match):
         entry_time = datetime.datetime.now().strftime("%T")
@@ -1459,7 +1468,6 @@ class GUI(customtkinter.CTk):
             self.wait_thread.start()
 
     def wait(self, init, onEnter, onExit):
-        """ Handles waiting process for different actions. """
         if init:
             self.status.configure(text = "Initializing...... Wait \nFor a while ... !")
             threading.Event().wait(10)
