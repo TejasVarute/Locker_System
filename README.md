@@ -23,14 +23,14 @@ A GUI-based **Bank Locker Management System** built with **Python**, **CustomTki
 ```bash
 LockerSystem/
 │
-├── assets/                 # Images, icons, and theme files
-├── DATA/                   # SQLite database file
-├── PyENV/                  # Python Environment
-├── GUI.py                  # Main GUI launcher
+├── assets/                  # Images, icons, and theme files
+├── DATA/                    # SQLite database file
+├── env/                       # Python Environment
+├── App.py                  # Main GUI launcher
 ├
-├── README.md
-├── requirements.txt
-├── runner.bat
+├── README.md        
+├── requirements.txt  # Required Libraries
+├── runner.bat            # Bat code to run main code
 └── LICENSE
 ```
 
