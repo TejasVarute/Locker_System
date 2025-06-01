@@ -13,7 +13,6 @@ a = Analysis(
                 ('assets\\citydata.db', 'assets'),
                 ('assets\\locker.ico', 'assets'),
                 ('assets\\theme.json', 'assets'),
-                
                 ],
     hiddenimports=[],
     hookspath=[],
