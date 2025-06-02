@@ -1274,7 +1274,6 @@ class GUI(customtkinter.CTk):
 
     def updateCamera(self, camera):
         Settings.CAMERA = camera
-        print(Settings.CAMERA)
     
     def visitors(self):        
         # Treeview table inside right_frame
@@ -1305,6 +1304,7 @@ class GUI(customtkinter.CTk):
             self.table.insert("", "end", values=data)
 
     def initilize(self):
+        self.match = None
         self.choosenLocker = None
         self.checking = False
         self.wait_thread = None
