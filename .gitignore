@@ -1,5 +1,6 @@
 env/
 DATA/
 __pycache__/
+App.spec
 runner.bat
 problems.md
