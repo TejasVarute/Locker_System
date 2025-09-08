@@ -1,4 +1,5 @@
 env/
 DATA/
+__pycache__/
 runner.bat
 problems.md
