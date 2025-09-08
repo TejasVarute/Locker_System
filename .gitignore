@@ -1,4 +1,4 @@
-env
-problems.md
+env/
+DATA/
 runner.bat
-DATA
+problems.md
