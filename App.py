@@ -31,8 +31,8 @@ class Settings:
     
     CAMERA = 0
     SAMPLES = 5
-    TOLERANCE = 0.38
-    MODEL = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml') # type: ignore
+    TOLERANCE = 0.5
+    MODEL = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     
     if not os.path.exists(r'./DATA'): os.makedirs(r'./DATA')
     if not os.path.exists(r'./DATA/DATABASE'): os.makedirs(r'./DATA/DATABASE')
@@ -456,7 +456,7 @@ class DistDatabase:
 #--------------------------------------- Recognizations classes  ---------------------------------------
 class Datasets(Settings):
     def __init__(self):
-        self.location = r".//DATA//SAMPLES/"
+        self.location = "./" + "/DATA/" + "/SAMPLES/"
         self.FACESKNOW, self.NAMESKNOW = self.Get_Images()
     
     def Get_Images(self):
@@ -484,15 +484,16 @@ class Datasets(Settings):
         
     def Recognize(self, image):
         image = np.array(image)
+        if not self.FACESKNOW: return "No faces registered"
 
-        locations = face_recognition.face_locations(image, model="hog")
+        locations = face_recognition.face_locations(image, model="hog")  
         encodings = face_recognition.face_encodings(image, locations)
 
         for face_encoding in encodings:
             distances = face_recognition.face_distance(self.FACESKNOW, face_encoding)
             best_match_index = np.argmin(distances)
             if distances[best_match_index] < self.TOLERANCE: return self.NAMESKNOW[best_match_index]  
-        return "Face Not Recognized"
+        return "Unknown"
 
 #------------------------------------- Detecting and storing faces --------------------------------------
 class DetectionFrame(customtkinter.CTkToplevel):
@@ -529,8 +530,10 @@ class DetectionFrame(customtkinter.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self.close_window)
 
     def toggle_camera(self):
-        if self.camera_running: self.stop_camera()
-        else: self.start_camera()
+        if self.camera_running:
+            self.stop_camera()
+        else:
+            self.start_camera()
 
     def start_camera(self):
         self.camera = cv2.VideoCapture(Settings.CAMERA)
@@ -557,14 +560,17 @@ class DetectionFrame(customtkinter.CTkToplevel):
         self.label.configure(image=None)
         self.status.configure(text="Camera stopped.")
         self.button.configure(text="🎥 Start Capturing")
-        if hasattr(self, "camera"): self.camera.release()
+        if hasattr(self, "camera"):
+            self.camera.release()
         cv2.destroyAllWindows()
 
     def update_frame(self):
-        if not self.camera_running: return
+        if not self.camera_running:
+            return
 
         ret, frame = self.camera.read()
-        if not ret: return
+        if not ret:
+            return
 
         self.latest_frame = frame.copy()
 
@@ -601,7 +607,7 @@ class DetectionFrame(customtkinter.CTkToplevel):
 
             for (x, y, w, h) in faces:
                 if self.counter >= Settings.SAMPLES: break
-                face = gray[y-(100) : y + h + (100), x-(100) : x + w+(100)]
+                face = gray[y:y + h, x:x + w]
                 self.counter += 1
                 cv2.imwrite(f"{save_path}/{self.counter}.jpg", face)
             cv2.waitKey(50)
@@ -1258,8 +1264,10 @@ class GUI(customtkinter.CTk):
         for cam in range (10):
             camera = cv2.VideoCapture(cam)
             if camera.isOpened():
-                if cam == 0: SUBFILEMENU2.add_command(label="Default", activebackground="#0A84FF", command=lambda camera=cam : self.updateCamera(camera))
-                else: SUBFILEMENU2.add_command(label=f"External Camera {cam}", activebackground="#0A84FF", command=lambda camera=cam : self.updateCamera(camera))
+                if cam == 0:
+                    SUBFILEMENU2.add_command(label="Default", activebackground="#0A84FF", command=lambda camera=cam : self.updateCamera(camera))
+                else:
+                    SUBFILEMENU2.add_command(label=f"External Camera {cam}", activebackground="#0A84FF", command=lambda camera=cam : self.updateCamera(camera))
         
         FILEMENU4.add_command(label="Get occupied locker details", activebackground="#0A84FF", command=lambda : GetIntoExcel().occupied_lockers())
         FILEMENU4.add_command(label="Get visitors details", activebackground="#0A84FF", command=lambda : GetIntoExcel().visitors_list())
@@ -1268,6 +1276,7 @@ class GUI(customtkinter.CTk):
 
     def updateCamera(self, camera):
         Settings.CAMERA = camera
+        print(Settings.CAMERA)
     
     def visitors(self):        
         # Treeview table inside right_frame
@@ -1298,7 +1307,6 @@ class GUI(customtkinter.CTk):
             self.table.insert("", "end", values=data)
 
     def initilize(self):
-        self.match = None
         self.choosenLocker = None
         self.checking = False
         self.wait_thread = None
@@ -1347,7 +1355,7 @@ class GUI(customtkinter.CTk):
                 if f'{rows[3]} {rows[4]} {rows[5]}' == match: locker_details.append((rows[0], rows[1]))
             if len(locker_details) > 1: return self.selectlocker(match, locker_details)
             elif locker_details: return locker_details[0]
-        return (False, False)
+        return False
             
     def toggle_camera(self):
         if self.camera_running:
@@ -1372,23 +1380,15 @@ class GUI(customtkinter.CTk):
             self.start_wait(init=True, onEnter=False, onExit=False)
             self.camera_window()
                 
-    def update_match_result(self, match):
-        self.match = match
-    
-    def run_face_recognition(self, gray, frame):
+    def getFaces(self, gray, frame):
         faces = Settings.MODEL.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
         match = "Unknown"
         for (x, y, w, h) in faces:
             face_frame = frame[y:y+h, x:x+w]  
-            # self.checking = False
+            self.checking = False
             match = Datasets().Recognize(face_frame)
-            # self.checking = True
-        self.after(0, lambda: self.update_match_result(match))
-    
-    def start_face_thread(self, gray, frame):
-        if not hasattr(self, "face_thread") or not self.face_thread.is_alive():
-            self.face_thread = threading.Thread(target=self.run_face_recognition, args=(gray.copy(), frame.copy()), daemon=True)
-            self.face_thread.start()
+            self.checking = True
+        return match
     
     def camera_window(self):      
         ret, frame = self.camera.read()
@@ -1397,23 +1397,19 @@ class GUI(customtkinter.CTk):
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             match = "Unknown"
             
-            if self.checking: 
-                self.start_face_thread(gray, frame)
-                if self.match : 
-                    match = self.match
-            
+            if self.checking: match = self.getFaces(gray, frame)
             if match != "Unknown" and match !="No faces registered":
-                if match not in self.logs and not self.entry_detected and match!="Face Not Recognized": self.record_entry(match)
+                if match not in self.logs and not self.entry_detected: self.record_entry(match)
                 elif match == self.current_person and self.entry_detected and self.waiting_for_exit: self.record_exit(match)
-                elif match == "Face Not Recognized":
-                    if messagebox.showerror("Unknown Person", "Unknown Face, Please register your locker !"):
-                        self.checking = False
-                        self.after(250, self.toggle_camera)
+            elif match == "No faces registered":
+                if messagebox.showerror("Unknown Person", "Unknown Face, Please register your locker !"):
+                    self.checking = False
+                    self.after(250, self.toggle_camera)
 
             #Remove cv2 black border
             _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
             x, y, w, h = cv2.boundingRect(thresh)
-            frame = frame[y:y + (h-10), x:x + w]
+            frame = frame[y:y+(h-10), x:x+w]
                     
             # Converting Frame to image
             img = Image.fromarray(frame)
@@ -1428,28 +1424,26 @@ class GUI(customtkinter.CTk):
             photo = customtkinter.CTkImage(light_image=img, size=(480, 400))
             self.camera_label.configure(image = photo)
         
-        if self.camera_running: self.after(30, self.camera_window)
+        if self.camera_running:
+            self.after(5, self.camera_window)
     
     def record_entry(self, match):
         entry_time = datetime.datetime.now().strftime("%T")
         self.logs[match] = {"Entry": entry_time, "Exit": None}
-        
-        print(self.getlockers(match))
-        self.locker_no, self.locker_size = self.getlockers(match)
-        
-        if self.locker_no and self.locker_size:
+        try:
+            self.locker_no, self.locker_size = self.getlockers(match) 
             self.entries[self.counter] = [self.locker_no, match, entry_time]
             DatabaseManager().set_visitors(self.locker_no, self.locker_size, match, entry_time=entry_time)
             self.visitors_info()
-            self.checking = False
             self.current_person = match
             self.entry_detected = True  
             self.status.configure(text = f"{match} Inside \nWaiting for Exit...")
+            
             self.start_wait(init=False, onEnter=True, onExit=False)
-        else:
+        except Exception:
             if messagebox.showerror("Locker closed", f"Mr/Miss {match} your locker is closed"):
                 self.after(250, self.toggle_camera)
-                
+
     def record_exit(self, match):
         exit_time = datetime.datetime.now().strftime("%T")
         self.logs[match]["Exit"] = exit_time
@@ -1459,33 +1453,23 @@ class GUI(customtkinter.CTk):
         self.visitors_info()
         self.start_wait(init=False, onEnter=False, onExit=True)
 
-    def start_wait(self, init=False, onEnter=False, onExit=False):
-        if self.wait_thread is None or not self.wait_thread.is_alive():
-            self.wait_thread = threading.Thread(target=self.wait, args=(init, onEnter, onExit), daemon=True)
-            self.wait_thread.start()
-
-    def wait(self, init, onEnter, onExit):
+    def start_wait(self, init, onEnter, onExit):
         if init:
             self.status.configure(text = "Initializing...... Wait \nFor a while ... !")
-            threading.Event().wait(10)
             if self.camera_running:
-                self.status.configure(text = "Ready to check ......")
-                self.checking = True
+                self.after(10000, lambda: (setattr(self, "checking", True), self.status.configure(text = "Ready to check ......")))
         elif onEnter:
             self.checking = False
-            self.waiting_for_exit = True  
-            threading.Event().wait(10)
+            self.waiting_for_exit = True
             if self.camera_running:  
-                self.checking = True
-                self.status.configure(text = "Checking for Exit...")
+                self.after(10000, lambda: (setattr(self, "checking", True), self.status.configure(text = "Checking for Exit...")))
         elif onExit:
             self.checking = False
             self.waiting_for_exit = False
             self.counter+=1
             if self.camera_running:
                 self.status.configure(text = "Resetting ......... Wait")
-                threading.Event().wait(10)
-                self.reset_system()
+                self.after(10000, lambda: (self.reset_system()))
 
     def reset_system(self):
         self.logs = {}  
@@ -1495,7 +1479,7 @@ class GUI(customtkinter.CTk):
         if self.camera_running: 
             self.status.configure(text = "Waiting for Person...")
             threading.Event().wait(2)
-            self.checking = True
+            self.after(2000, lambda: setattr(self, "checking", True))
     
 #------------------------------------------ Loading Window --------------------------------------------  
 class PreLoading(customtkinter.CTk):
