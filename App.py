@@ -429,13 +429,22 @@ class DatabaseManager:
             time_entry = entry_time.strftime("%H:%M:%S") if isinstance(entry_time, datetime.datetime) else entry_time
             self.cursor.execute(query, (str(locker_no), locker_size, visitor, date_today, time_entry))
         else:
-            query = """
-                UPDATE Visitors
-                SET Exit_Time = ?
-                WHERE Locker_No = ? AND Exit_Time IS NULL
-            """
-            time_exit = exit_time.strftime("%H:%M:%S") if isinstance(exit_time, datetime.datetime) else exit_time
-            self.cursor.execute(query, (time_exit, str(locker_no)))
+            if locker_size:
+                query = """
+                    UPDATE Visitors
+                    SET Exit_Time = ?
+                    WHERE Locker_No = ? AND Locker_Size = ? AND Exit_Time IS NULL
+                """
+                time_exit = exit_time.strftime("%H:%M:%S") if isinstance(exit_time, datetime.datetime) else exit_time
+                self.cursor.execute(query, (time_exit, str(locker_no), locker_size))
+            else:
+                query = """
+                    UPDATE Visitors
+                    SET Exit_Time = ?
+                    WHERE Locker_No = ? AND Exit_Time IS NULL
+                """
+                time_exit = exit_time.strftime("%H:%M:%S") if isinstance(exit_time, datetime.datetime) else exit_time
+                self.cursor.execute(query, (time_exit, str(locker_no)))
         self.connection.commit()
     
     def get_visitors(self):
@@ -1113,7 +1122,7 @@ class LockerManager(customtkinter.CTkToplevel):
         rent.grid(row=4, column=1, padx=10, pady=10, sticky="we")
         
         combo_boxes = []
-        def update_locker_combos(choice):
+        def update_locker_combos(choice, prefilled=None):
             for widget in combo_frame.winfo_children(): widget.destroy()
             combo_boxes.clear()
 
@@ -1122,6 +1131,8 @@ class LockerManager(customtkinter.CTkToplevel):
                 lbl.grid(row=0, column=0, padx=(20, 40), pady=10, sticky="w")
                 combo = customtkinter.CTkComboBox(combo_frame, values=[str(x) for x in range(1, 101)], corner_radius=10)
                 combo.grid(row=0, column=1, padx=5, pady=5)
+                if prefilled and len(prefilled) > 0:
+                    combo.set(str(prefilled[0]))
                 combo_boxes.append(combo)
             else:
                 count = int(choice)
@@ -1131,11 +1142,39 @@ class LockerManager(customtkinter.CTkToplevel):
                     lbl.grid(row=i, column=0, padx=(20, 5), pady=5, sticky="e")
                     combo = customtkinter.CTkComboBox(combo_frame, values=[str(x) for x in range(1, 101)])
                     combo.grid(row=i, column=1, padx=5, pady=5)
+                    if prefilled and len(prefilled) > i:
+                        combo.set(str(prefilled[i]))
                     combo_boxes.append(combo)
 
+        # Load existing config from DB if present
+        db = DatabaseManager()
+        try:
+            existing_lockers = db.get_lockers().get(label)
+            existing_depo_rent = db.get_depo_rent(label)
+        except Exception as e:
+            logger.warning(f"Could not load existing config for {label}: {e}")
+            existing_lockers = None
+            existing_depo_rent = None
+
+        if existing_lockers:
+            if isinstance(existing_lockers, list) and len(existing_lockers) == 2 and isinstance(existing_lockers[0], list):
+                part_choice = str(len(existing_lockers[0]))
+                prefilled_counts = existing_lockers[1]
+            else:
+                part_choice = "NA"
+                prefilled_counts = existing_lockers
+        else:
+            part_choice = "NA"
+            prefilled_counts = None
+
         partition_dropdown.configure(command=update_locker_combos)
-        partition_dropdown.set("NA")  # Set default
-        update_locker_combos("NA")  # Show 1 combo by default
+        partition_dropdown.set(part_choice)  # Set selected partition choice
+        update_locker_combos(part_choice, prefilled_counts)  # Create combo boxes with prefilled counts
+
+        if existing_depo_rent:
+            depo_val, rent_val = existing_depo_rent[0]
+            deposite.insert(0, str(depo_val))
+            rent.insert(0, str(rent_val))
         
         def add_data():
             selected_partition = partition_dropdown.get()
@@ -1152,6 +1191,11 @@ class LockerManager(customtkinter.CTkToplevel):
 
         set_button = customtkinter.CTkButton(frame, text="SET", command=add_data, corner_radius=10)
         set_button.grid(row=5, column=0, columnspan=2, pady=20)
+
+        # Automatically register existing data to all_lockers so Save button works out of the box
+        if existing_lockers and existing_depo_rent:
+            add_data()
+
         return frame
 
     def show_tab(self, name):
@@ -1288,6 +1332,9 @@ class LockerLayoutBase(customtkinter.CTkToplevel):
 class ShowAllLockers(LockerLayoutBase):
     def __init__(self):
         locker_data = self.prepare_data()
+        if not locker_data:
+            if messagebox.showerror("Lockers Data not Found !", "Please set the lockers first !"): LockerManager()
+            return
         super().__init__(locker_data, self.select_callback, self.filter_all_lockers, self.disable_occupied_lockers, f"{Settings.TITLE} - Add new Locker")
     
     def prepare_data(self):
@@ -1302,12 +1349,14 @@ class ShowAllLockers(LockerLayoutBase):
             'Large': [occupied["Large"], [200, 150], 4, [20, 20]],
             }
         try:
+            if not total_data or any(len(v) == 0 for v in total_data.values()):
+                return None
             for k, v in total_data.items():
                 if len(v) == 1: lockers[k] += [[], v[0]]
                 else: lockers[k] += [v[0], v[1]]
             return lockers
         except:
-            if messagebox.showerror("Lockers Data not Found !", "Please set the lockers first !"): LockerManager(); self.destroy()
+            return None
 
     def filter_all_lockers(self, locker_id, occupied):
         return True  # Show every locker
@@ -1325,7 +1374,10 @@ class ReleaseLocker(LockerLayoutBase):
         self.flag = flag
         title = f"{Settings.TITLE} - Release Locker" if flag else f"{Settings.TITLE} - Update Locker"
         locker_data = self.prepare_data()
-        if locker_data: super().__init__(locker_data, self.release_callback, self.filter_occupied_only, self.enable_all, title)
+        if not locker_data:
+            if messagebox.showerror("Lockers Data not Found !", "Please set the lockers first !"): LockerManager()
+            return
+        super().__init__(locker_data, self.release_callback, self.filter_occupied_only, self.enable_all, title)
 
     def prepare_data(self):
         occupied = {"Small": [], "Medium": [], "Large": []}
@@ -1340,6 +1392,8 @@ class ReleaseLocker(LockerLayoutBase):
             'Large': [self.sorter(occupied["Large"]), [200, 150], 4, [20, 20]]
         }
         try:
+            if not total_data or any(len(v) == 0 for v in total_data.values()):
+                return None
             for k, v in total_data.items():
                 if len(v) == 1:
                     lockers[k] += [[], v[0]]
@@ -1347,7 +1401,7 @@ class ReleaseLocker(LockerLayoutBase):
                     lockers[k] += [v[0], v[1]]
             return lockers
         except:
-            if messagebox.showerror("Lockers Data not Found !", "Please set the lockers first !"): LockerManager(); self.destroy()
+            return None
 
     def sorter(self, data):
         if data and not data[0].isnumeric():
@@ -1570,7 +1624,7 @@ class GUI(customtkinter.CTk):
                                                   width=485, height=400)
         self.cameraFrame.grid(row=1, pady=(10, 10), padx=20)
         
-        self.camera_label = customtkinter.CTkLabel(self.cameraFrame, text="\U0001F4F9\n\nCamera Preview",  
+        self.camera_label = customtkinter.CTkLabel(self.cameraFrame, text="",  
                                                    width=480, height=400,
                                                    font=("Segoe UI", 16),
                                                    text_color=("#94A3B8", "#475569"))
@@ -1772,7 +1826,7 @@ class GUI(customtkinter.CTk):
                 self.waiting_for_exit = False
                 exit_time = datetime.datetime.now().strftime("%T")
                 self.entries[self.counter].append(f"{exit_time}")
-                DatabaseManager().set_visitors(self.locker_no, exit_time=exit_time)
+                DatabaseManager().set_visitors(self.locker_no, getattr(self, 'locker_size', None), exit_time=exit_time)
                 self.counter+=1
                 self.visitors_info()
             self.initilize()
@@ -1885,7 +1939,7 @@ class GUI(customtkinter.CTk):
         self.logs[match]["Exit"] = exit_time
         if len(self.entries) != 5:
             self.entries[self.counter].append(exit_time)
-            DatabaseManager().set_visitors(self.locker_no, exit_time=exit_time)
+            DatabaseManager().set_visitors(self.locker_no, getattr(self, 'locker_size', None), exit_time=exit_time)
         self.visitors_info()
         self.start_wait(init=False, onEnter=False, onExit=True)
 
